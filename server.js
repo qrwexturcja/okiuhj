@@ -1,32 +1,26 @@
-// server.js
-const express = require('express')
-const fetch = require('node-fetch')
-const app = express()
+const express = require('express');
+const http = require('http');
+const app = express();
 
-const BASE_URL = 'http://57.128.210.127/show1/'
+// Proxy endpoint to fetch .m3u8 content
+app.get('/:channel/index.m3u8', (req, res) => {
+  const channel = req.params.channel;
+  const targetUrl = `http://145.239.19.149/${channel}/index.m3u8`;
 
-app.get('/*', async (req, res) => {
-  const path = req.params[0]
-  const targetUrl = BASE_URL + path
-  try {
-    const response = await fetch(targetUrl, {
-      headers: {
-        'User-Agent': 'VLC/3.0.18 LibVLC/3.0.18',
-        'Referer': BASE_URL
-      }
-    })
+  // Forward the request to the origin server
+  http.get(targetUrl, (response) => {
+    // Set headers to allow streaming
+    res.set({
+      'Content-Type': 'application/vnd.apple.mpegurl',
+      'Access-Control-Allow-Origin': '*', // Allow CORS for Cloudflare Workers
+    });
 
-    if (!response.ok) {
-      return res.status(response.status).send(`Fetch error: ${response.status}`)
-    }
+    // Pipe the response to the client
+    response.pipe(res);
+  }).on('error', (err) => {
+    res.status(500).send('Error fetching the stream');
+  });
+});
 
-    res.set('Access-Control-Allow-Origin', '*')
-    res.set('Content-Type', response.headers.get('Content-Type') || 'application/octet-stream')
-    response.body.pipe(res)
-  } catch (err) {
-    res.status(500).send('Proxy error: ' + err.message)
-  }
-})
-
-const PORT = process.env.PORT || 3000
-app.listen(PORT, () => console.log(`Proxy listening on port ${PORT}`))
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log(`Proxy running on port ${port}`));
