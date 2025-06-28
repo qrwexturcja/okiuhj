@@ -1,13 +1,12 @@
 {
-       "name": "rtsp-to-hls",
-       "version": "1.0.0",
-       "description": "Convert RTSP to HLS on Render",
-       "main": "index.js",
-       "scripts": {
-         "start": "node index.js"
-       },
-       "dependencies": {
-         "express": "^4.17.1",
-         "fluent-ffmpeg": "^2.1.2"
-       }
-     }
+  "name": "proxy-server",
+  "version": "1.0.0",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.9"
+  }
+}
