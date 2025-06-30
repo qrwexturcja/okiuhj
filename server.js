@@ -6,21 +6,23 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Enable CORS for all routes with additional headers
+// Enable CORS for all routes with comprehensive headers
 app.use(cors({
   origin: '*',
   methods: ['GET', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Accept'],
-  exposedHeaders: ['Content-Type'],
+  allowedHeaders: ['Content-Type', 'Accept', 'Range'],
+  exposedHeaders: ['Content-Type', 'Content-Range', 'Accept-Ranges'],
+  maxAge: 86400, // Cache preflight response for 24 hours
 }));
 
 // Handle OPTIONS preflight requests for all routes
-app.options('/:channel/*', (req, res) => {
+app.options('*', (req, res) => {
+  console.log('Handling OPTIONS request for:', req.url);
   res.set({
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Accept',
-    'Access-Control-Max-Age': '86400', // Cache preflight response for 24 hours
+    'Access-Control-Allow-Headers': 'Content-Type, Accept, Range',
+    'Access-Control-Max-Age': '86400',
   });
   res.status(204).send();
 });
@@ -42,10 +44,8 @@ app.get('/:channel/*', async (req, res) => {
     let targetUrl;
 
     if (isM3u8) {
-      // For M3U8 files, start with the original URL and follow redirects
       targetUrl = `${originalBaseUrl}/${channel}.m3u8`;
     } else {
-      // For .ts segments or other files, use the redirected server with the full path
       targetUrl = `${segmentBaseUrl}/${remainingPath}?${req.url.split('?')[1] || ''}`;
     }
 
@@ -57,8 +57,8 @@ app.get('/:channel/*', async (req, res) => {
         'Origin': 'http://piranha.mobi',
         'Accept': isM3u8 ? 'application/vnd.apple.mpegurl' : 'video/MP2T',
       },
-      responseType: isM3u8 ? 'text' : 'arraybuffer', // Use arraybuffer for .ts files
-      maxRedirects: 5, // Follow redirects
+      responseType: isM3u8 ? 'text' : 'arraybuffer',
+      maxRedirects: 5,
     });
 
     let content = response.data;
@@ -68,7 +68,6 @@ app.get('/:channel/*', async (req, res) => {
       const workerBaseUrl = `${req.protocol}://${req.get('host')}/${channel}`;
       content = content.split('\n').map(line => {
         if (line && !line.startsWith('#') && !line.startsWith('http')) {
-          // Normalize path to avoid double slashes
           const [pathPart, query] = line.split('?');
           const normalizedPath = path.normalize(pathPart).replace(/^\/+/, '');
           return `${workerBaseUrl}/${normalizedPath}${query ? '?' + query : ''}`;
@@ -78,13 +77,22 @@ app.get('/:channel/*', async (req, res) => {
     }
 
     // Set headers for VLC and ClickApp compatibility
-    res.set({
+    const headers = {
       'Content-Type': isM3u8 ? 'application/vnd.apple.mpegurl' : 'video/MP2T',
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Accept',
-    });
+      'Access-Control-Allow-Headers': 'Content-Type, Accept, Range',
+      'Access-Control-Expose-Headers': 'Content-Type, Content-Range, Accept-Ranges',
+    };
+    if (!isM3u8) {
+      headers['Accept-Ranges'] = 'bytes';
+      headers['Content-Range'] = `bytes 0-${content.length - 1}/${content.length}`;
+    }
+    res.set(headers);
+
+    // Log headers for debugging
+    console.log('Response headers for', req.url, headers);
 
     // Send binary data for .ts files, text for .m3u8
     if (isM3u8) {
@@ -93,7 +101,7 @@ app.get('/:channel/*', async (req, res) => {
       res.send(Buffer.from(content));
     }
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('Error:', error.message, 'URL:', targetUrl);
     if (error.response) {
       return res.status(error.response.status).send(`Error fetching content: ${error.response.statusText}`);
     }
