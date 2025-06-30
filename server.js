@@ -6,7 +6,7 @@ const app = express();
 app.get('/:channel/*', (req, res) => {
   const channel = req.params.channel;
   const path = req.params[0]; // Capture the rest of the path (e.g., index.m3u8 or tracks-v1a1/mono.ts.m3u8)
-  const targetUrl = `http://145.239.19.149/${channel}/${path}`;
+  const targetUrl = `http://piranha.mobi/live/SylwiaMusia%C5%82/c6f66612d91c067a/${channel}/${path}`;
 
   // Forward the request to the origin server
   http.get(targetUrl, (response) => {
