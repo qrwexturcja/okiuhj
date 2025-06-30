@@ -11,6 +11,7 @@ app.get('/proxy/:channel/*', async (req, res) => {
     const remainingPath = req.params[0] || '';
 
     if (!channel) {
+      console.error('Invalid URL format:', req.url);
       return res.status(400).send('Invalid URL format');
     }
 
@@ -26,7 +27,9 @@ app.get('/proxy/:channel/*', async (req, res) => {
       targetUrl = `${segmentBaseUrl}/${remainingPath}?${req.url.split('?')[1] || ''}`;
     }
 
-    // Fetch content from target URL
+    console.log('Fetching:', targetUrl);
+
+    // Fetch content with increased timeout
     const response = await axios.get(targetUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
@@ -36,6 +39,7 @@ app.get('/proxy/:channel/*', async (req, res) => {
       },
       responseType: isM3u8 ? 'text' : 'arraybuffer',
       maxRedirects: 5,
+      timeout: 10000, // 10-second timeout
     });
 
     // Set minimal headers
@@ -51,11 +55,11 @@ app.get('/proxy/:channel/*', async (req, res) => {
       res.send(Buffer.from(response.data));
     }
   } catch (error) {
-    console.error('Error:', error.message, 'URL:', targetUrl);
+    console.error('Error fetching:', req.url, 'Error:', error.message, 'Status:', error.response?.status);
     if (error.response) {
       return res.status(error.response.status).send(`Error fetching content: ${error.response.statusText}`);
     }
-    res.status(500).send(`Error: ${error.message}`);
+    res.status(502).send(`Error: ${error.message}`);
   }
 });
 
