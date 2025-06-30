@@ -6,11 +6,24 @@ const path = require('path');
 const app = express();
 const port = process.env.PORT || 3000;
 
-// Enable CORS for VLC compatibility
+// Enable CORS for all routes with additional headers
 app.use(cors({
   origin: '*',
-  methods: ['GET'],
+  methods: ['GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept'],
+  exposedHeaders: ['Content-Type'],
 }));
+
+// Handle OPTIONS preflight requests for all routes
+app.options('/:channel/*', (req, res) => {
+  res.set({
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Accept',
+    'Access-Control-Max-Age': '86400', // Cache preflight response for 24 hours
+  });
+  res.status(204).send();
+});
 
 // Proxy endpoint for M3U8 and segment files
 app.get('/:channel/*', async (req, res) => {
@@ -39,7 +52,7 @@ app.get('/:channel/*', async (req, res) => {
     // Fetch content from the target URL
     const response = await axios.get(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; 64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
         'Referer': 'http://piranha.mobi/',
         'Origin': 'http://piranha.mobi',
         'Accept': isM3u8 ? 'application/vnd.apple.mpegurl' : 'video/MP2T',
@@ -64,11 +77,13 @@ app.get('/:channel/*', async (req, res) => {
       }).join('\n');
     }
 
-    // Set headers for VLC compatibility
+    // Set headers for VLC and ClickApp compatibility
     res.set({
       'Content-Type': isM3u8 ? 'application/vnd.apple.mpegurl' : 'video/MP2T',
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Accept',
     });
 
     // Send binary data for .ts files, text for .m3u8
